@@ -10,7 +10,7 @@ const menuItems = [
 
 export default function Sidebar() {
   const user = JSON.parse(localStorage.getItem('user') || '{}');
-  const isAdmin = user.email === 'admin@bitforex.com';
+  const isAdmin = user.role === 'Admin';
 
   return (
     <aside className="sidebar">

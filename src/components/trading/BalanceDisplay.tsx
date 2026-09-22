@@ -6,13 +6,14 @@ import { useSignalR } from '../../hooks/useSignalR';
 export default function BalanceDisplay() {
   const [balance, setBalance] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+  const [connectionId, setConnectionId] = useState<number | null>(null);
   const { connection, isConnected } = useSignalR();
 
   const fetchBalance = async () => {
     setLoading(true);
     try {
       const response = await api.get('/trading/balance', {
-        params: { currency: 'USDT', useFutures: false },
+        params: { currency: 'USDT', useFutures: false, ...(connectionId ? { connectionId } : {}) },
       });
       setBalance(response.data.balance);
     } catch (error: any) {
@@ -32,10 +33,23 @@ export default function BalanceDisplay() {
     }
   }, [connection, isConnected]);
 
-  // Initial fetch
+  // Load the connected broker so balance requests can target a specific connection.
+  useEffect(() => {
+    const loadConnection = async () => {
+      try {
+        const response = await api.get('/broker/connections');
+        const connected = (response.data ?? []).filter((x: any) => x.isConnected);
+        setConnectionId(connected[0]?.id ?? null);
+      } catch {
+        setConnectionId(null);
+      }
+    };
+    loadConnection();
+  }, []);
+
   useEffect(() => {
     fetchBalance();
-  }, []);
+  }, [connectionId]);
 
   return (
     <div style={{ background: '#14141e', border: '1px solid #2a2a3a', borderRadius: '12px', padding: '20px', maxWidth: '300px' }}>

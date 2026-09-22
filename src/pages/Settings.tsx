@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import Sidebar from '../components/common/Sidebar';
 import { api } from '../services/api';
 import toast from 'react-hot-toast';
+import BrokerConnection from '../components/trading/BrokerConnection';
 
 export default function Settings() {
   const [user, setUser] = useState<any>(null);
@@ -138,34 +139,9 @@ export default function Settings() {
           </div>
         </div>
 
-        {/* Broker Connections Card */}
-        <div style={{
-          background: '#14141e',
-          border: '1px solid #2a2a3a',
-          borderRadius: '12px',
-          padding: '20px',
-          marginBottom: '24px'
-        }}>
-          <h2 style={{ color: '#ffffff', marginBottom: '16px', fontSize: '18px' }}>Broker Connections</h2>
-          <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap' }}>
-            <button 
-              className="btn-primary" 
-              style={{ width: 'auto', padding: '10px 20px', background: '#f7931a' }}
-              onClick={() => alert('Binance connection UI coming soon!')}
-            >
-              + Connect Binance
-            </button>
-            <button 
-              className="btn-primary" 
-              style={{ width: 'auto', padding: '10px 20px', background: '#00d4aa' }}
-              onClick={() => alert('Bybit connection UI coming soon!')}
-            >
-              + Connect Bybit
-            </button>
-          </div>
-          <p style={{ color: '#9ca3af', marginTop: '12px', fontSize: '14px' }}>
-            ℹ️ Connect your exchange API keys to start trading. Keys are encrypted and stored securely.
-          </p>
+        {/* Broker Connections */}
+        <div style={{ marginBottom: '24px' }}>
+          <BrokerConnection />
         </div>
 
         {/* Logout Card */}

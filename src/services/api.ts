@@ -24,7 +24,7 @@ api.interceptors.response.use(
           const res = await axios.post('http://localhost:5212/api/auth/refresh', { refreshToken });
           localStorage.setItem('accessToken', res.data.accessToken);
           error.config.headers.Authorization = `Bearer ${res.data.accessToken}`;
-          return axios(error.config);
+          return api(error.config);
         } catch {
           localStorage.clear();
           window.location.href = '/login';

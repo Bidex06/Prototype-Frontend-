@@ -1,19 +1,33 @@
+import type { ReactNode } from 'react';
 import { Navigate } from 'react-router-dom';
 
-interface Props {
-  children: JSX.Element;
+interface ProtectedRouteProps {
+  children: ReactNode;
   adminOnly?: boolean;
 }
 
-export default function ProtectedRoute({ children, adminOnly = false }: Props) {
+export default function ProtectedRoute({
+  children,
+  adminOnly = false,
+}: ProtectedRouteProps) {
   const token = localStorage.getItem('accessToken');
-  const user = JSON.parse(localStorage.getItem('user') || '{}');
+  const userJson = localStorage.getItem('user');
 
-  if (!token) return <Navigate to="/login" />;
-
-  if (adminOnly && user.email !== 'admin@bitforex.com') {
-    return <Navigate to="/" />;
+  if (!token) {
+    return <Navigate to="/login" replace />;
   }
 
-  return children;
+  let user: { role?: string } | null = null;
+
+  try {
+    user = userJson ? JSON.parse(userJson) : null;
+  } catch {
+    localStorage.removeItem('user');
+  }
+
+  if (adminOnly && user?.role !== 'Admin') {
+    return <Navigate to="/" replace />;
+  }
+
+  return <>{children}</>;
 }
