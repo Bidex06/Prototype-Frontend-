@@ -25,12 +25,16 @@ export default function BalanceDisplay() {
 
   // 👇 Listen for real‑time balance updates
   useEffect(() => {
-    if (connection && isConnected) {
-      connection.on('BalanceUpdated', (newBalance: number) => {
-        setBalance(newBalance);
-        console.log('💰 Balance updated via SignalR:', newBalance);
-      });
-    }
+    if (!connection || !isConnected) return;
+
+    const handleBalanceUpdated = (newBalance: number) => {
+      setBalance(newBalance);
+    };
+
+    connection.on('BalanceUpdated', handleBalanceUpdated);
+    return () => {
+      connection.off('BalanceUpdated', handleBalanceUpdated);
+    };
   }, [connection, isConnected]);
 
   // Load the connected broker so balance requests can target a specific connection.
@@ -39,6 +43,10 @@ export default function BalanceDisplay() {
       try {
         const response = await api.get('/broker/connections');
         const connected = (response.data ?? []).filter((x: any) => x.isConnected);
+        connected.sort((a: any, b: any) =>
+          new Date(b.lastConnectedAt ?? 0).getTime() -
+          new Date(a.lastConnectedAt ?? 0).getTime()
+        );
         setConnectionId(connected[0]?.id ?? null);
       } catch {
         setConnectionId(null);

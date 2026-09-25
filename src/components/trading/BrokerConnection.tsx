@@ -68,9 +68,9 @@ export default function BrokerConnection({
         setApiSecret('');
         toast.success(`${broker.toUpperCase()} connected in TESTNET mode.`);
         const refreshedConnections = await loadConnections();
-
-        const connectionId = response.data.connectionId as number | undefined;
-        const connected = refreshedConnections.find((x) => x.id === connectionId);
+        const connected = refreshedConnections.find(
+          (x) => x.brokerName.toLowerCase() === broker && x.isConnected
+        );
         if (connected) onConnect?.(connected);
       } else {
         toast.error(response.data.message || 'Connection failed');

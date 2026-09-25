@@ -23,7 +23,7 @@ export default function TradeExecution() {
   const [connections, setConnections] = useState<BrokerConnection[]>([]);
   const [connectionId, setConnectionId] = useState<number | null>(null);
   const [symbols, setSymbols] = useState<MarketSymbol[]>([]);
-  const [symbol, setSymbol] = useState('BTCUSDT');
+  const [symbol, setSymbol] = useState('');
   const [loading, setLoading] = useState<'buy' | 'sell' | null>(null);
   const [loadingSymbols, setLoadingSymbols] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -34,7 +34,10 @@ export default function TradeExecution() {
         const response = await api.get<BrokerConnection[]>('/broker/connections');
         const connected = (response.data ?? []).filter((x) => x.isConnected);
         setConnections(connected);
-        if (connected.length > 0) setConnectionId(connected[0].id);
+        setConnectionId((current) => {
+          if (current && connected.some((x) => x.id === current)) return current;
+          return connected[0]?.id ?? null;
+        });
       } catch (error) {
         console.error('Failed to fetch broker connections', error);
         toast.error('Failed to load broker connections');
@@ -44,8 +47,10 @@ export default function TradeExecution() {
   }, []);
 
   useEffect(() => {
+    setSymbols([]);
+    setSymbol('');
+
     if (!connectionId) {
-      setSymbols([]);
       setLoadingSymbols(false);
       return;
     }
@@ -58,7 +63,11 @@ export default function TradeExecution() {
         });
         const data = response.data ?? [];
         setSymbols(data);
-        if (data.length > 0 && !data.some((x) => x.symbol === symbol)) setSymbol(data[0].symbol);
+        setSymbol((current) =>
+          current && data.some((x) => x.symbol === current)
+            ? current
+            : data[0]?.symbol ?? ''
+        );
       } catch (error: any) {
         console.error('Failed to fetch symbols', error);
         toast.error(error.response?.data?.message || 'Failed to load trading pairs');

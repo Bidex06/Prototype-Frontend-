@@ -7,7 +7,7 @@ let startPromise: Promise<void> | null = null;
 function getSharedConnection(): signalR.HubConnection {
   if (!sharedConnection) {
     sharedConnection = new signalR.HubConnectionBuilder()
-      .withUrl('http://localhost:5212/tradingHub', {
+      .withUrl(import.meta.env.VITE_SIGNALR_URL || 'http://localhost:5212/tradingHub', {
         accessTokenFactory: () => {
           return localStorage.getItem('accessToken') ?? '';
         },
