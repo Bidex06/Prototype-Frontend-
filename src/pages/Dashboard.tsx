@@ -80,6 +80,7 @@ export default function Dashboard() {
   });
 
   const [loading, setLoading] = useState(true);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     const stored = localStorage.getItem('user');
@@ -190,7 +191,7 @@ export default function Dashboard() {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [refreshKey]);
 
   const now = Date.now();
 
@@ -337,6 +338,7 @@ export default function Dashboard() {
                   pair={primarySymbol?.symbol ?? 'No symbol'}
                   strategy={bot.strategy}
                   status={getBotStatus(bot)}
+                  onChanged={() => setRefreshKey((k) => k + 1)}
                 />
               );
             })

@@ -82,7 +82,9 @@ export default function Settings() {
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ color: '#9ca3af' }}>Subscription</span>
-              <span style={{ color: '#00d4aa' }}>{user?.isTrial ? 'Trial' : 'Premium'}</span>
+              <span style={{ color: user?.isSubscriptionActive ? '#00d4aa' : '#ef4444' }}>
+  {user?.isSubscriptionActive ? (user?.isTrial ? 'Trial' : 'Premium') : 'Expired'}
+</span>
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <span style={{ color: '#9ca3af' }}>Subscription Ends</span>
