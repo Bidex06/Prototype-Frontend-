@@ -12,6 +12,9 @@ interface Props {
   status: 'Running' | 'Stopped' | 'Disabled';
   profit?: number | null;
   profitAmount?: number | null;
+  stopLoss?: string;
+  takeProfit?: string;
+  readiness?: { isEligible: boolean; reason: string } | null;
   onChanged?: () => void;
 }
 
@@ -31,6 +34,9 @@ export default function BotCard({
   status,
   profit,
   profitAmount,
+  stopLoss,
+  takeProfit,
+  readiness,
   onChanged
 }: Props) {
   const [busy, setBusy] = useState<'start' | 'stop' | 'delete' | null>(null);
@@ -112,6 +118,15 @@ export default function BotCard({
         <p className="text-white mt-1">{strategy}</p>
       </div>
 
+      {(stopLoss || takeProfit) && (
+        <div className="mt-4">
+          <p className="text-gray-400 text-sm">Stop-loss / Take-profit</p>
+          <p className="text-white mt-1">
+            {stopLoss ?? '-'} / {takeProfit ?? '-'}
+          </p>
+        </div>
+      )}
+
       <div className="mt-4">
         <p className="text-gray-400 text-sm">Profit / Loss</p>
 
@@ -137,6 +152,17 @@ export default function BotCard({
           <p className="text-gray-500 mt-1">No bot P&amp;L</p>
         )}
       </div>
+
+      {status === 'Running' && readiness && (
+        <p
+          className="mt-4 text-sm"
+          style={{ color: readiness.isEligible ? '#10b981' : '#f59e0b' }}
+        >
+          {readiness.isEligible
+            ? 'Ready. Waits for a BUY or SELL on a closed candle.'
+            : `Not trading: ${readiness.reason}`}
+        </p>
+      )}
 
       <div style={{ display: 'flex', gap: '8px', marginTop: '16px' }}>
         {status === 'Running' ? (

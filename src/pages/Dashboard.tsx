@@ -6,6 +6,7 @@ import Sidebar from '../components/common/Sidebar';
 import PortfolioCard from '../components/dashboard/PortfolioCard';
 import BotCard from '../components/dashboard/BotCard';
 import PerformanceChart from '../components/dashboard/PerformanceChart';
+import RecentTrades from '../components/dashboard/RecentTrades';
 
 import BalanceDisplay from '../components/trading/BalanceDisplay';
 import SignalDisplay from '../components/trading/SignalDisplay';
@@ -36,6 +37,30 @@ interface TradingBot {
     exchange: string;
     isEnabled: boolean;
   }[];
+  autoTradeEnabled?: boolean;
+  // The API sends RiskManagementMode as a number: 0 = Auto, 1 = Manual, 2 = None.
+  stopLossMode?: number | string;
+  stopLossPercent?: number | null;
+  takeProfitMode?: number | string;
+  takeProfitPercent?: number | null;
+}
+
+interface Readiness {
+  isEligible: boolean;
+  reason: string;
+}
+
+function formatRisk(
+  mode?: number | string,
+  percent?: number | null
+): string | undefined {
+  if (mode === undefined || mode === null) return undefined;
+  const name = typeof mode === 'string' ? mode : ['Auto', 'Manual', 'None'][mode];
+  if (name === 'Manual') {
+    return percent !== null && percent !== undefined ? `${percent}%` : 'Manual';
+  }
+  if (name === 'None') return 'Off';
+  return 'Auto';
 }
 
 interface Trade {
@@ -51,6 +76,7 @@ interface Trade {
   profitLossPercentage?: number | null;
   status: string;
   brokerName?: string | null;
+  reason?: string | null;
 }
 
 interface Position {
@@ -67,6 +93,7 @@ interface DashboardData {
   bots: TradingBot[];
   trades: Trade[];
   positions: Position[];
+  readiness: Record<number, Readiness>;
 }
 
 export default function Dashboard() {
@@ -76,7 +103,8 @@ export default function Dashboard() {
     balance: null,
     bots: [],
     trades: [],
-    positions: []
+    positions: [],
+    readiness: {}
   });
 
   const [loading, setLoading] = useState(true);
@@ -176,11 +204,27 @@ export default function Dashboard() {
         );
       }
 
+      // Ask the API which running bots are actually allowed to trade.
+      // Failures are ignored so an older backend still works.
+      const readiness: Record<number, Readiness> = {};
+      const runningBots = bots.filter((b) => b.isEnabled && b.isRunning);
+      const readinessResults = await Promise.allSettled(
+        runningBots.map((b) => api.get<Readiness>(`/bot/${b.id}/readiness`))
+      );
+      readinessResults.forEach((result, index) => {
+        if (result.status === 'fulfilled' && result.value.data) {
+          readiness[runningBots[index].id] = result.value.data;
+        }
+      });
+
+      if (!mounted) return;
+
       setData({
         balance,
         bots,
         trades,
-        positions
+        positions,
+        readiness
       });
 
       setLoading(false);
@@ -192,6 +236,11 @@ export default function Dashboard() {
       mounted = false;
     };
   }, [refreshKey]);
+
+  const signalBot =
+    data.bots.find((b) => b.isEnabled && b.isRunning) ?? data.bots[0];
+  const signalSymbol =
+    signalBot?.trackedSymbols.find((s) => s.isEnabled)?.symbol ?? 'BTCUSDT';
 
   const now = Date.now();
 
@@ -338,12 +387,17 @@ export default function Dashboard() {
                   pair={primarySymbol?.symbol ?? 'No symbol'}
                   strategy={bot.strategy}
                   status={getBotStatus(bot)}
+                  stopLoss={formatRisk(bot.stopLossMode, bot.stopLossPercent)}
+                  takeProfit={formatRisk(bot.takeProfitMode, bot.takeProfitPercent)}
+                  readiness={data.readiness[bot.id] ?? null}
                   onChanged={() => setRefreshKey((k) => k + 1)}
                 />
               );
             })
           )}
         </div>
+
+        <RecentTrades trades={data.trades} />
 
         {/* Existing real trading components */}
         <div
@@ -355,7 +409,7 @@ export default function Dashboard() {
           }}
         >
           <BalanceDisplay />
-          <SignalDisplay />
+          <SignalDisplay symbol={signalSymbol} />
         </div>
 
         <div

@@ -3,6 +3,7 @@ import Sidebar from '../components/common/Sidebar';
 import { api } from '../services/api';
 import toast from 'react-hot-toast';
 import BrokerConnection from '../components/trading/BrokerConnection';
+import KillSwitch from '../components/trading/KillSwitch';
 
 export default function Settings() {
   const [user, setUser] = useState<any>(null);
@@ -61,6 +62,8 @@ export default function Settings() {
         <h1 style={{ fontSize: '24px', fontWeight: '700', color: '#ffffff', marginBottom: '24px' }}>
           Settings
         </h1>
+
+        <KillSwitch />
 
         {/* Account Card */}
         <div style={{

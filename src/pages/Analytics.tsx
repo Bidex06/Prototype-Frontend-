@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
-import { useParams, Link } from 'react-router-dom';
+import { useParams, Link, Navigate, useNavigate } from 'react-router-dom';
 import toast from 'react-hot-toast';
 
 import Sidebar from '../components/common/Sidebar';
@@ -31,6 +31,7 @@ interface Trade {
   profitLossPercentage?: number | null;
   status: string;
   brokerName?: string | null;
+  botId?: number | null;
 }
 
 interface Position {
@@ -45,14 +46,66 @@ interface Position {
   status: string;
 }
 
+interface ActivityItem {
+  action: string;
+  details: string;
+  createdAt: string;
+}
+
+const ACTIVITY_LABELS: Record<string, string> = {
+  AutoTradeExecutionAccepted: 'Order accepted',
+  AutoTradeExecutionBlocked: 'Order rejected',
+  AutoTradeSignalBlocked: 'Signal skipped',
+  AutoTradeExecutionAttempt: 'Order attempt',
+  AutoTradeExecutionPersistenceWarning: 'Order accepted, needs reconciliation',
+  AutoTradePositionClosing: 'Closing position (opposite signal)',
+  AutoTradePositionCloseFailed: 'Could not close position',
+  ProtectionOrdersPartialFailure: 'Stop-loss / take-profit problem'
+};
+
+function activityColor(action: string): string {
+  if (action.includes('Accepted')) return '#10b981';
+  if (action.includes('Blocked') || action.includes('Failed') || action.includes('Failure')) return '#ef4444';
+  return '#9ca3af';
+}
+
+function parseUtcDate(value: string): Date {
+  return new Date(/(Z|[+-]\d{2}:?\d{2})$/.test(value) ? value : `${value}Z`);
+}
+
 export default function Analytics() {
   const { botId } = useParams<{ botId: string }>();
+  const navigate = useNavigate();
+
+  const [allBots, setAllBots] = useState<BotDetail[]>([]);
+  const [botsLoaded, setBotsLoaded] = useState(false);
+  const [activity, setActivity] = useState<ActivityItem[]>([]);
 
   const [bot, setBot] = useState<BotDetail | null>(null);
   const [trades, setTrades] = useState<Trade[]>([]);
   const [positions, setPositions] = useState<Position[]>([]);
   const [loading, setLoading] = useState(true);
   const [notFound, setNotFound] = useState(false);
+
+  // Bot list: used by the bot switcher, and to pick a bot when the page is
+  // opened from the sidebar without a bot id (/analytics).
+  useEffect(() => {
+    let mounted = true;
+    api
+      .get<BotDetail[]>('/bot')
+      .then((response) => {
+        if (mounted) setAllBots(Array.isArray(response.data) ? response.data : []);
+      })
+      .catch(() => {
+        // the page still works for a bot opened by id
+      })
+      .finally(() => {
+        if (mounted) setBotsLoaded(true);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -64,7 +117,8 @@ export default function Analytics() {
       const results = await Promise.allSettled([
         api.get<BotDetail>(`/bot/${botId}`),
         api.get<Trade[]>('/trading/trade-history', { params: { limit: 200 } }),
-        api.get<Position[]>('/trading/positions')
+        api.get<Position[]>('/trading/positions'),
+        api.get<ActivityItem[]>(`/bot/${botId}/activity`)
       ]);
 
       if (!mounted) return;
@@ -92,10 +146,21 @@ export default function Analytics() {
         toast.error(positionsResult.reason?.response?.data?.message || 'Failed to load open positions.');
       }
 
+      const activityResult = results[3];
+      if (activityResult.status === 'fulfilled') {
+        setActivity(Array.isArray(activityResult.value.data) ? activityResult.value.data : []);
+      } else {
+        setActivity([]);
+      }
+
       setLoading(false);
     };
 
-    if (botId) load();
+    if (botId) {
+      load();
+    } else {
+      setLoading(false);
+    }
 
     return () => {
       mounted = false;
@@ -117,12 +182,16 @@ export default function Analytics() {
 
   const botTrades = useMemo(() => {
     if (!bot) return [];
-    return trades.filter(
-      (t) =>
+    return trades.filter((t) => {
+      // Trades opened by a bot are matched by bot id. Older or manual trades have no bot id
+      // and are matched by symbol + broker as before.
+      if (t.botId !== null && t.botId !== undefined) return String(t.botId) === botId;
+      return (
         trackedSymbols.has(t.symbol) &&
         (!t.brokerName || !bot.brokerName || t.brokerName.toLowerCase() === bot.brokerName.toLowerCase())
-    );
-  }, [trades, trackedSymbols, bot]);
+      );
+    });
+  }, [trades, trackedSymbols, bot, botId]);
 
   const botPositions = useMemo(
     () => positions.filter((p) => trackedSymbols.has(p.symbol)),
@@ -148,6 +217,32 @@ export default function Analytics() {
     borderRadius: '12px',
     padding: '16px'
   };
+
+  if (!botId) {
+    if (botsLoaded && allBots.length > 0) {
+      const target = allBots.find((b) => b.isEnabled && b.isRunning) ?? allBots[0];
+      return <Navigate to={`/analytics/${target.id}`} replace />;
+    }
+
+    return (
+      <div style={{ display: 'flex', minHeight: '100vh', background: '#0a0a0f' }}>
+        <Sidebar />
+        <main style={{ flex: 1, padding: '24px', marginLeft: '240px', color: '#9ca3af' }}>
+          {!botsLoaded ? (
+            <p>Loading...</p>
+          ) : (
+            <>
+              <h1 style={{ fontSize: '24px', fontWeight: 700, color: '#ffffff', marginBottom: '8px' }}>
+                Analytics
+              </h1>
+              <p style={{ marginBottom: '12px' }}>You have no bots yet, so there is nothing to analyze.</p>
+              <Link to="/create-bot" style={{ color: '#00d4ff' }}>Create your first bot</Link>
+            </>
+          )}
+        </main>
+      </div>
+    );
+  }
 
   if (notFound) {
     return (
@@ -177,6 +272,27 @@ export default function Analytics() {
               {' · '}{!bot.isEnabled ? 'Disabled' : bot.isRunning ? 'Running' : 'Stopped'}
             </p>
           )}
+          {allBots.length > 1 && (
+            <select
+              value={botId}
+              onChange={(e) => navigate(`/analytics/${e.target.value}`)}
+              aria-label="Switch bot"
+              style={{
+                marginTop: '12px',
+                padding: '8px 12px',
+                background: '#14141e',
+                color: '#ffffff',
+                border: '1px solid #2a2a3a',
+                borderRadius: '8px'
+              }}
+            >
+              {allBots.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name}
+                </option>
+              ))}
+            </select>
+          )}
         </div>
 
         <div
@@ -190,9 +306,8 @@ export default function Analytics() {
             marginBottom: '20px'
           }}
         >
-          These numbers are matched to this bot by symbol + broker, since trades aren't directly
-          linked to a specific bot on the backend yet. If you run more than one bot on the same
-          symbol and broker, their trades will overlap here.
+          Trades opened by this bot are matched by bot. Older or manual trades, which have no bot
+          recorded, are matched by symbol + broker and can overlap with other bots on the same symbol.
         </div>
 
         {loading ? (
@@ -290,6 +405,32 @@ export default function Analytics() {
                           ? `${t.profitLoss >= 0 ? '+' : ''}$${Number(t.profitLoss).toFixed(2)}`
                           : 'Open'}
                       </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div style={{ marginTop: '24px' }}>
+              <h3 style={{ color: '#ffffff', fontWeight: 600, marginBottom: '4px' }}>Bot activity</h3>
+              <p style={{ color: '#6b7280', fontSize: '13px', marginBottom: '10px' }}>
+                What the bot did on each cycle, including why it did not place an order.
+              </p>
+              {activity.length === 0 ? (
+                <p style={{ color: '#6b7280' }}>No bot activity recorded yet.</p>
+              ) : (
+                <div style={{ background: '#14141e', border: '1px solid #2a2a3a', borderRadius: '12px', overflow: 'hidden' }}>
+                  {activity.map((item, i) => (
+                    <div key={`${item.createdAt}-${i}`} style={{ padding: '12px 16px', borderBottom: '1px solid #2a2a3a' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '14px' }}>
+                        <span style={{ color: activityColor(item.action), fontWeight: 600 }}>
+                          {ACTIVITY_LABELS[item.action] ?? item.action}
+                        </span>
+                        <span style={{ color: '#6b7280' }}>{parseUtcDate(item.createdAt).toLocaleString()}</span>
+                      </div>
+                      <div style={{ color: '#9ca3af', fontSize: '13px', marginTop: '4px' }}>
+                        {item.details.replace(/\s*IdempotencyKey=\S+/i, '')}
+                      </div>
                     </div>
                   ))}
                 </div>
